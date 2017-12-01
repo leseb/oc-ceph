@@ -19,9 +19,14 @@ DEBUG           = settings['debug']
 DISK_UUID = Time.now.utc.to_i
 
 system("
-    if [ #{ARGV[0]} = 'up' ] || [ #{ARGV[0]} = 'provision' ]; then
+  if [ #{ARGV[0]} = 'provision' ]; then
+    if vagrant status | grep -sq running; then
+      if vagrant ssh k8s-master.example.com -c 'sudo stat /root/.ssh &> /dev/null'; then
 	timeout 5 vagrant ssh-config > ssh-config && sed 's/vagrant/root/g' -i ssh-config
+	ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/byo/config.yml -e openshift_disable_check='disk_availability,memory_availability'
+      fi
     fi
+  fi
 ")
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
@@ -98,18 +103,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     	  if DEBUG then
     	    ansible.verbose = '-vvvv'
     	  end
-    	  ansible.limit = 'all'
+	  # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
+    	  ansible.limit = ""
+	  #ansible.raw_arguments = ENV[ANSIBLE_ARGS].to_s.split(':')
     	end
-        system("
-          if [ #{ARGV[0]} = 'up' ] || [ #{ARGV[0]} = 'provision' ]; then
-	    if vagrant status | grep -sq running; then
-              if vagrant ssh k8s-master.example.com -c 'sudo stat /root/.ssh &> /dev/null'; then
-    	        timeout 5 vagrant ssh-config > ssh-config && sed 's/vagrant/root/g' -i ssh-config
-  	        ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/byo/config.yml -e openshift_disable_check='disk_availability,memory_availability'
-	      fi
-            fi
-          fi
-        ")
       end
     end
   end
