@@ -90,7 +90,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     	    "masters"          => ["#{LABEL_PREFIX}master.example.com"],
     	    "etcd" => ["#{LABEL_PREFIX}master.example.com"],
     	    "OSEv3:children" => ["masters", "nodes"],
-    	    "OSEv3:vars" => {"deployment_type" => "origin", "ansible_ssh_user" => "root" },
+    	    "OSEv3:vars" => {"deployment_type" => "origin", "ansible_ssh_user" => "root", "openshift_repos_enable_testing" => true },
   	    }
     	  ansible.extra_vars = {
   	      openshift_disable_check: "disk_availability,memory_availability",
@@ -100,6 +100,16 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     	  end
     	  ansible.limit = 'all'
     	end
+        system("
+          if [ #{ARGV[0]} = 'up' ] || [ #{ARGV[0]} = 'provision' ]; then
+	    if vagrant status | grep -sq running; then
+              if vagrant ssh k8s-master.example.com -c 'sudo stat /root/.ssh &> /dev/null'; then
+    	        timeout 5 vagrant ssh-config > ssh-config && sed 's/vagrant/root/g' -i ssh-config
+  	        ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/byo/config.yml -e openshift_disable_check='disk_availability,memory_availability'
+	      fi
+            fi
+          fi
+        ")
       end
     end
   end
