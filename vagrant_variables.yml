@@ -1,0 +1,19 @@
+---
+# DEFINE THE NUMBER OF VMS TO RUN
+node_vms: 2
+
+# SUBNETS TO USE FOR THE VMS
+public_subnet: 192.168.42
+cluster_subnet: 192.168.43
+
+# MEMORY
+memory: 8192
+
+#vagrant_box: centos/atomic-host
+vagrant_box: centos/7
+
+# Debug mode, runs Ansible with -vvvv
+debug: false
+
+# VM prefix label
+label_prefix: k8s
