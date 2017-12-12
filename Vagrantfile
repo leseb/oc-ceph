@@ -75,38 +75,39 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
       if i == (NNODES-1)
         n = (0..NNODES - 1).map { |j| "#{LABEL_PREFIX}node#{j}.example.com" }
-    	n[NNODES] = "#{LABEL_PREFIX}master.example.com"
-    	node.vm.provision :ansible do |ansible|
-    	  ansible.playbook = 'playbooks/byo/config.yml'
-    	  ansible.host_vars = {
-  	      "k8s-master.example.com" => "openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\"",
-  	      "k8s-node0.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node1.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node2.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node3.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node4.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node5.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node6.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node7.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	      "k8s-node8.example.com" => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-  	    }
-    	  ansible.groups = {
-    	    "nodes"             => n,
-    	    "masters"          => ["#{LABEL_PREFIX}master.example.com"],
-    	    "etcd" => ["#{LABEL_PREFIX}master.example.com"],
-    	    "OSEv3:children" => ["masters", "nodes"],
-    	    "OSEv3:vars" => {"deployment_type" => "origin", "ansible_ssh_user" => "root", "openshift_repos_enable_testing" => true },
-  	    }
-    	  ansible.extra_vars = {
-  	      openshift_disable_check: "disk_availability,memory_availability",
-    	  }
-    	  if DEBUG then
-    	    ansible.verbose = '-vvvv'
-    	  end
-	  # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
-    	  ansible.limit = ""
-	  #ansible.raw_arguments = ENV[ANSIBLE_ARGS].to_s.split(':')
-    	end
+        c = (0..NNODES - 1).map { |j| "#{LABEL_PREFIX}node#{j}.example.com" }
+        n[NNODES] = "#{LABEL_PREFIX}master.example.com"
+        node.vm.provision :ansible do |ansible|
+          ansible.playbook = 'playbooks/byo/config.yml'
+          ansible.host_vars = {
+            "k8s-master.example.com" => "openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\"",
+            "k8s-node0.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node1.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node2.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node3.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node4.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node5.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node6.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node7.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+            "k8s-node8.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
+          }
+          ansible.groups = {
+            "nodes"           => n,
+            "ceph"            => c,
+            "masters"         => ["#{LABEL_PREFIX}master.example.com"],
+            "etcd"            => ["#{LABEL_PREFIX}master.example.com"],
+            "OSEv3:children"  => ["masters", "nodes"],
+            "OSEv3:vars"      => {"deployment_type" => "origin", "ansible_ssh_user" => "root", "openshift_repos_enable_testing" => true },
+          }
+          ansible.extra_vars = {
+            openshift_disable_check: "disk_availability,memory_availability",
+          }
+          if DEBUG then
+            ansible.verbose = '-vvvv'
+          end
+          # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
+          ansible.limit = ""
+        end
       end
     end
   end
@@ -127,7 +128,6 @@ if ! grep -Eo DHCP_HOSTNAME /etc/sysconfig/network-scripts/ifcfg-eth0; then echo
 mkdir -p /root/.ssh
 cp -v /home/vagrant/.ssh/authorized_keys /root/.ssh
 systemctl restart network
-    "
+  "
   config.vm.provision 'shell', inline: $script
 end
-

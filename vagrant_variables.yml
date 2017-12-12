@@ -1,6 +1,6 @@
 ---
 # DEFINE THE NUMBER OF VMS TO RUN
-node_vms: 2
+node_vms: 3
 
 # SUBNETS TO USE FOR THE VMS
 public_subnet: 192.168.42
