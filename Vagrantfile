@@ -117,7 +117,8 @@ yum -y update
 yum -y install vim wget git net-tools bind-utils iptables-services bridge-utils bash-completion pyOpenSSL yum-utils
 yum-config-manager --add-repo https://packages.docker.com/1.12/yum/repo/main/centos/7
 yum makecache fast
-yum install docker-engine -y
+yum -y update
+yum -y --nogpgcheck install docker-engine
 cat <<EOF > /etc/sysconfig/docker-storage-setup
 DEVS=/dev/sda
 VG=docker-vg
