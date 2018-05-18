@@ -114,7 +114,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   $script = "
 yum -y update
-yum -y install vim  wget git net-tools bind-utils iptables-services bridge-utils bash-completion pyOpenSSL docker
+yum -y install vim wget git net-tools bind-utils iptables-services bridge-utils bash-completion pyOpenSSL yum-utils
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum -y install docker-ce
 cat <<EOF > /etc/sysconfig/docker-storage-setup
 DEVS=/dev/sda
 VG=docker-vg
