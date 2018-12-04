@@ -23,7 +23,8 @@ system("
     if vagrant status | grep -sq running; then
       if vagrant ssh k8s-master.example.com -c 'sudo stat /root/.ssh &> /dev/null'; then
 	timeout 5 vagrant ssh-config > ssh-config && sed 's/vagrant/root/g' -i ssh-config
-	ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/byo/config.yml -e openshift_disable_check='disk_availability,memory_availability'
+	ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/prerequisites.yml' -e openshift_disable_check='disk_availability,memory_availability'
+	ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/deploy_cluster.yml' -e openshift_disable_check='disk_availability,memory_availability'
       fi
     fi
   fi
