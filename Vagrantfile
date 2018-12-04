@@ -116,7 +116,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   $script = "
 yum -y update
-yum -y install vim wget git net-tools bind-utils iptables-services bridge-utils bash-completion pyOpenSSL yum-utils
+yum -y install vim wget git net-tools bind-utils iptables-services bridge-utils bash-completion pyOpenSSL yum-utils PyYAML
 yum-config-manager --add-repo https://packages.docker.com/1.12/yum/repo/main/centos/7
 yum makecache fast
 yum -y update
