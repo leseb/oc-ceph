@@ -79,7 +79,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         c = (0..NNODES - 1).map { |j| "#{LABEL_PREFIX}node#{j}.example.com" }
         n[NNODES] = "#{LABEL_PREFIX}master.example.com"
         node.vm.provision :ansible do |ansible|
-          ansible.playbook = 'playbooks/byo/config.yml'
+          ansible.playbook = 'playbooks/prerequisites.yml'
+          ansible.playbook = 'playbooks/deploy_cluster.yml'
           ansible.host_vars = {
             "k8s-master.example.com" => "openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\"",
             "k8s-node0.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
