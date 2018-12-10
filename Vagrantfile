@@ -18,18 +18,6 @@ MEMORY          = settings['memory']
 DEBUG           = settings['debug']
 DISK_UUID = Time.now.utc.to_i
 
-system("
-  if [ #{ARGV[0]} = 'provision' ]; then
-    if vagrant status | grep -sq running; then
-      if vagrant ssh k8s-master.example.com -c 'sudo stat /root/.ssh &> /dev/null'; then
-	timeout 5 vagrant ssh-config > ssh-config && sed 's/vagrant/root/g' -i ssh-config
-	ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/prerequisites.yml' -e openshift_disable_check='disk_availability,memory_availability'
-	ANSIBLE_SSH_ARGS='-F ssh-config' ansible-playbook -i .vagrant/provisioners/ansible/inventory playbooks/deploy_cluster.yml' -e openshift_disable_check='disk_availability,memory_availability'
-      fi
-    fi
-  fi
-")
-
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = BOX
   config.vm.box_url = BOX_URL
@@ -78,62 +66,148 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         n = (0..NNODES - 1).map { |j| "#{LABEL_PREFIX}node#{j}.example.com" }
         c = (0..NNODES - 1).map { |j| "#{LABEL_PREFIX}node#{j}.example.com" }
         n[NNODES] = "#{LABEL_PREFIX}master.example.com"
-        node.vm.provision :ansible do |ansible|
-          ansible.playbook = 'playbooks/prerequisites.yml'
-          ansible.playbook = 'playbooks/deploy_cluster.yml'
-          ansible.host_vars = {
-            "k8s-master.example.com" => "openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\"",
-            "k8s-node0.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node1.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node2.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node3.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node4.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node5.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node6.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node7.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-            "k8s-node8.example.com"  => "openshift_node_labels=\"{'region': 'primary', 'zone': 'west'}\"",
-          }
-          ansible.groups = {
-            "nodes"           => n,
-            "ceph"            => c,
-            "masters"         => ["#{LABEL_PREFIX}master.example.com"],
-            "etcd"            => ["#{LABEL_PREFIX}master.example.com"],
-            "OSEv3:children"  => ["masters", "nodes"],
-            "OSEv3:vars"      => {"deployment_type" => "origin", "ansible_ssh_user" => "root", "openshift_repos_enable_testing" => true },
-          }
-          ansible.extra_vars = {
-            openshift_disable_check: "disk_availability,memory_availability",
-          }
+        NNODES = NNODES + 1
+
+        # first run - node preparation
+        node.vm.provision "node-prep", type: "ansible" do |ansible|
+          ansible.playbook = 'node-prep.yml'
+          # decent verbosity
+          ansible.verbose = '-vv'
           if DEBUG then
             ansible.verbose = '-vvvv'
           end
           # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
           ansible.limit = ""
         end
+
+        # second run - openshift pre-req
+        node.vm.provision "prereq-oc", type: "ansible" do |ansible|
+          ansible.playbook = 'playbooks/prerequisites.yml'
+          ansible.host_vars = {
+            "k8s-master.example.com" => "openshift_node_group_name='node-config-master'",
+            "k8s-node0.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node1.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node2.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node3.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node4.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node5.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node6.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node7.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node8.example.com"  => "openshift_node_group_name='node-config-compute'",
+          }
+          ansible.groups = {
+            "nodes"           => n,
+            "ceph"            => c,
+            "masters"         => ["#{LABEL_PREFIX}master.example.com"],
+            "etcd"            => ["#{LABEL_PREFIX}master.example.com"],
+            "OSEv3:children"  => ["masters", "nodes", "etcd", "ceph"],
+            "OSEv3:vars"      => {
+              "deployment_type" => "origin",
+              "openshift_deployment_type" => "origin",
+              "ansible_become" => true,
+              "openshift_repos_enable_testing" => true,
+              "openshift_enable_excluders" => false,
+              "enable_docker_excluder" => false,
+              "openshift_cluster_monitoring_operator_install" => false, # we disable this because we don't have any 'infra' node
+              "openshift_disable_check" => "memory_availability,docker_storage,disk_availability",
+              "openshift_additional_repos" => "[{'id': 'centos-paas', 'name': 'centos-paas', 'baseurl' :'https://buildlogs.centos.org/centos/7/paas/x86_64/openshift-origin311', 'gpgcheck' :'0', 'enabled' :'1'}]",
+            },
+          }
+          # decent verbosity
+          ansible.verbose = '-vv'
+          if DEBUG then
+            ansible.verbose = '-vvvv'
+          end
+          # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
+          ansible.limit = ""
+        end
+
+        # third run - deploy openshift
+        node.vm.provision "deploy-oc", type: "ansible" do |ansible|
+          ansible.playbook = 'playbooks/deploy_cluster.yml'
+          ansible.host_vars = {
+            "k8s-master.example.com" => "openshift_node_group_name='node-config-master'",
+            "k8s-node0.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node1.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node2.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node3.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node4.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node5.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node6.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node7.example.com"  => "openshift_node_group_name='node-config-compute'",
+            "k8s-node8.example.com"  => "openshift_node_group_name='node-config-compute'",
+          }
+          ansible.groups = {
+            "nodes"           => n,
+            "ceph"            => c,
+            "masters"         => ["#{LABEL_PREFIX}master.example.com"],
+            "etcd"            => ["#{LABEL_PREFIX}master.example.com"],
+            "OSEv3:children"  => ["masters", "nodes", "etcd", "ceph"],
+            "OSEv3:vars"      => {
+              "deployment_type" => "origin",
+              "openshift_deployment_type" => "origin",
+              "ansible_become" => true,
+              "openshift_repos_enable_testing" => true,
+              "openshift_enable_excluders" => false,
+              "enable_docker_excluder" => false,
+              "openshift_cluster_monitoring_operator_install" => false, # we disable this because we don't have any 'infra' node
+              "openshift_disable_check" => "memory_availability,docker_storage,disk_availability",
+              "openshift_additional_repos" => "[{'id': 'centos-paas', 'name': 'centos-paas', 'baseurl' :'https://buildlogs.centos.org/centos/7/paas/x86_64/openshift-origin311', 'gpgcheck' :'0', 'enabled' :'1'}]",
+              "openshift_storage_ceph_install" => true,
+            },
+          }
+          # decent verbosity
+          ansible.verbose = '-vv'
+          if DEBUG then
+            ansible.verbose = '-vvvv'
+          end
+          # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
+          ansible.limit = ""
+        end
+
+        # forth run - deploy ceph
+        # node.vm.provision "deploy-ceph", type: "ansible" do |ansible|
+        #   ansible.playbook = 'playbooks/openshift-ceph/config.yml'
+        #   ansible.host_vars = {
+        #     "k8s-master.example.com" => "openshift_node_group_name='node-config-master'",
+        #     "k8s-node0.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node1.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node2.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node3.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node4.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node5.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node6.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node7.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #     "k8s-node8.example.com"  => "openshift_node_group_name='node-config-compute'",
+        #   }
+        #   ansible.groups = {
+        #     "nodes"           => n,
+        #     "ceph"            => c,
+        #     "masters"         => ["#{LABEL_PREFIX}master.example.com"],
+        #     "etcd"            => ["#{LABEL_PREFIX}master.example.com"],
+        #     "OSEv3:children"  => ["masters", "nodes", "etcd", "ceph"],
+        #     "OSEv3:vars"      => {
+        #       "deployment_type" => "origin",
+        #       "openshift_deployment_type" => "origin",
+        #       "ansible_become" => true,
+        #       "openshift_repos_enable_testing" => true,
+        #       "openshift_enable_excluders" => false,
+        #       "enable_docker_excluder" => false,
+        #       "openshift_cluster_monitoring_operator_install" => false, # we disable this because we don't have any 'infra' node
+        #       "openshift_disable_check" => "memory_availability,docker_storage,disk_availability",
+        #       "openshift_additional_repos" => "[{'id': 'centos-paas', 'name': 'centos-paas', 'baseurl' :'https://buildlogs.centos.org/centos/7/paas/x86_64/openshift-origin311', 'gpgcheck' :'0', 'enabled' :'1'}]",
+        #     },
+        #   }
+        #   # decent verbosity
+        #   ansible.verbose = '-vv'
+        #   if DEBUG then
+        #     ansible.verbose = '-vvvv'
+        #   end
+        #   # the openshift-ansible playbook does not support limit somehow, so it'll skip all the nodes
+        #   ansible.limit = ""
+        # end
+
       end
     end
   end
-
-  $script = "
-yum -y update
-yum -y install vim wget git net-tools bind-utils iptables-services bridge-utils bash-completion pyOpenSSL yum-utils PyYAML
-yum-config-manager --add-repo https://packages.docker.com/1.12/yum/repo/main/centos/7
-yum makecache fast
-yum -y update
-yum -y --nogpgcheck install docker-engine
-cat <<EOF > /etc/sysconfig/docker-storage-setup
-DEVS=/dev/sda
-VG=docker-vg
-EOF
-docker-storage-setup
-if ! grep -Eo INSECURE_REGISTRY /etc/sysconfig/docker ; then echo \"INSECURE_REGISTRY='--selinux-enabled --insecure-registry 172.30.0.0\/16'\" | sudo tee -a /etc/sysconfig/docker; fi
-systemctl enable docker
-systemctl start docker
-if [[ \"$(hostname -f)\" != \"$(uname -n).example.com\" ]] ; then hostnamectl set-hostname $(uname -n).example.com ; fi
-if ! grep -Eo DHCP_HOSTNAME /etc/sysconfig/network-scripts/ifcfg-eth0; then echo \"DHCP_HOSTNAME=$(uname -n)\" | sudo tee -a /etc/sysconfig/network-scripts/ifcfg-eth0 ; fi
-mkdir -p /root/.ssh
-cp -v /home/vagrant/.ssh/authorized_keys /root/.ssh
-systemctl restart network
-  "
-  config.vm.provision 'shell', inline: $script
 end
