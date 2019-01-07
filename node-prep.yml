@@ -1,0 +1,47 @@
+---
+- hosts: all
+  gather_facts: true
+  become: yes
+
+  vars:
+    pkgs:
+      - vim
+      - wget
+      - git
+      - net-tools
+      - bind-utils
+      - iptables-services
+      - bridge-utils
+      - bash-completion
+      - pyOpenSSL
+
+  tasks:
+
+    - name: install packages
+      package:
+        name: "{{ pkgs }}"
+        state: present
+
+    - name: check host FQDN
+      command: >
+        hostnamectl set-hostname {{ ansible_hostname }}.example.com
+      changed_when: false
+      when:
+        - "'example.com' not in ansible_fqdn"
+
+    - name: ini network script
+      ini_file:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth0
+        value: "{{ ansible_hostname }}.example.com"
+        option: DHCP_HOSTNAME
+        section: null
+        create: yes
+        state: present
+        no_extra_spaces: yes
+      register: nic
+
+    - name: restart network
+      service:
+        name: network
+        state: restarted
+      when: nic.changed

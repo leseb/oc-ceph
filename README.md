@@ -5,7 +5,7 @@
 Install vagrant + vagrant-libvirt:
 
 ```
-sudo yum install -y qemu libvirt libvirt-devel ruby-devel gcc qemu-kvm
+sudo yum install -y qemu libvirt libvirt-devel ruby-devel gcc qemu-kvm python-pip
 sudo rpm -i https://releases.hashicorp.com/vagrant/2.0.1/vagrant_2.0.1_x86_64.rpm
 vagrant plugin install vagrant-libvirt
 ```
@@ -50,20 +50,28 @@ sudo systemctl restart libvirtd
 
 Close OS repo:
 
-```
+```shell
 git clone https://github.com/openshift/openshift-ansible/
 cd openshift-ansible
+git checkout release-3.11
 git clone https://github.com/leseb/oc-ceph
 mv oc-ceph/* .
+pip install -r requirements.txt
 ```
 
 Simply run:
 
-`vagrant up --no-provision && vagrant provision`
+`vagrant up`
+
+Note that `vagrant provision --provision-with` can be useful to run only a subset of sequence:
+
+* prereq-oc -> node pre-requisite to run OpenShift
+* deploy-oc -> deploy OpenShift
+* deploy-ceph - pending upstream
 
 Wait wait wait until you see:
 
-```
+```text
 PLAY RECAP *********************************************************************
 k8s-master.example.com     : ok=597  changed=259  unreachable=0    failed=0
 k8s-node0.example.com      : ok=185  changed=69   unreachable=0    failed=0
